@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """Downlad items to ElasticSearch.
 
 usage: download_items_to_es.py -j JOB_ID [-e ELASTICSEARCH_URL] [-i INDEX] [-t DOC_TYPE] [-h]

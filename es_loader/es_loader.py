@@ -30,7 +30,11 @@ class ESPipeline(object):
         self.index_name = index
         self.doc_type = doc_type
         self.items_buffer = []
+        self.loaded_items_count = 0
+        self.buffer_size = 5000
         self._create_index()
+        self._get_job()
+        self._get_scraped_items_count()
 
     def _create_index(self):
         if not self.index_name:
@@ -41,12 +45,28 @@ class ESPipeline(object):
         self.es.indices.create(self.index_name)
         logger.debug('Index created')
 
+    def _get_job(self):
+        self.job = self.sc.get_job(self.job_id)
+
+    def _get_job_metadata(self):
+        self.metadata = self.job.metadata.list()
+
+    def _get_scraped_items_count(self):
+        self._get_job_metadata()
+        for data in self.metadata:
+            if data[0] == 'scrapystats':
+                self.items_count = data[1]['item_scraped_count']
+
     def _get_items(self):
-        logger.debug('Getting items')
-        items = self.sc.get_job(self.job_id).items.iter()
+        logger.debug(
+            'There are {} items scraped. Downloading...'.format(self.items_count)
+        )
+        items = self.job.items.iter()
         return items
 
     def _index_item(self, item):
+        if self.buffer_size == 0:
+            return
         index_action = {
             '_op_type': 'index',
             '_index': self.index_name,
@@ -56,12 +76,20 @@ class ESPipeline(object):
 
         self.items_buffer.append(index_action)
 
-        if len(self.items_buffer) >= 500:
+        if len(self.items_buffer) >= self.buffer_size:
+            self.loaded_items_count += len(self.items_buffer)
             self._send_items()
             self.items_buffer = []
 
+        if len(self.items_buffer) < self.buffer_size \
+                and (self.items_count - self.loaded_items_count) < self.buffer_size and self.buffer_size > 0:
+            self.buffer_size = self.items_count - self.loaded_items_count
+            self.loaded_items_count += len(self.items_buffer)
+            if len(self.items_buffer) > 0:
+                self._send_items()
+
     def _send_items(self):
-        logger.debug('Bulk writing items')
+        logger.debug('Bulk writing {} items'.format(len(self.items_buffer)))
         helpers.bulk(client=self.es, actions=self.items_buffer)
 
     def process_items(self):
