@@ -1,5 +1,6 @@
 from elasticsearch import helpers
 import logging
+from typing import Iterable
 
 
 logger = logging.getLogger('es_loader')
@@ -30,20 +31,22 @@ class ESPipeline(object):
     """
 
     def __init__(
-            self, sc, es, job_id, index=None, doc_type='product',
-            base_buffer_size=5000, max_buffer_size=20000):
+        self, sc, es,
+        job_id: str, index: str = None, doc_type: str = 'product',
+        base_buffer_size: int = 5000, max_buffer_size: int = 20000
+    ) -> None:
         """Constructor.
 
         Arguments:
             sc - an instance of ScrapinghubClient created with API key.
             es - an instance of Elasticsearh created with ES URI.
-            job_id - a string with job_id from Scrapy Cloud in format of
+            job_id - job_id from Scrapy Cloud in format of
                 orgranization/project/job, e.g.: '1886/5454/43'
-            index - a string with ElasticSearch index name, defaults to None
-            doc_type - a string with ElasticSearch document type name
-            base_buffer_size - integer with base buffer size which would be a
+            index - ElasticSearch index name, defaults to None
+            doc_type - ElasticSearch document type name
+            base_buffer_size - base buffer size which would be a
                 starting point for buffer size calculation
-            max_buffer_size - integer with maximal buffer size allowed, note
+            max_buffer_size - maximal buffer size allowed, note
                 that it should be evenly devisible by base buffer size, i.e.
                 max_buffer_size % base_buffer_size = 0
                 Default limit is 20k, but if you have a lot of available RAM
@@ -59,7 +62,7 @@ class ESPipeline(object):
         self.max_buffer_size = max_buffer_size
         self._create_index()
 
-    def _create_index(self):
+    def _create_index(self) -> None:
         """Create index in the ElasticSearch.
 
         If index name is not set in the constructor, the method uses
@@ -79,7 +82,7 @@ class ESPipeline(object):
         self.es.indices.create(self.index_name)
         logger.debug('Index created')
 
-    def _get_items(self):
+    def _get_items(self) -> Iterable:
         """Get items from Scrapy Cloud.
 
         Besides getting items this method also gets job metadata,
@@ -112,7 +115,8 @@ class ESPipeline(object):
         items = job.items.iter()
         return items
 
-    def _calculate_buffer_size(self, items_count, base_buffer_size):
+    def _calculate_buffer_size(
+            self, items_count: int, base_buffer_size: int) -> None:
         """Calculate buffer size.
 
         Hardcoded buffer size doesn't work as there might be jobs with
@@ -135,7 +139,7 @@ class ESPipeline(object):
         else:
             self.buffer_size = base_buffer_size
 
-    def process_items(self):
+    def process_items(self) -> None:
         """Entry point to the whole process.
         Calls all methods in order to process items of the job.
         """
@@ -160,7 +164,8 @@ class ESPipeline(object):
         if len(batch) > 0:
             self._bulk_send_items(batch)
 
-    def _bulk_send_items(self, batch):
+    def _bulk_send_items(self, batch) -> None:
+        """Bulk send items to ElasticSearch."""
         self.loaded_items_count += len(batch)
         logger.debug('Bulk writing {} items'.format(len(batch)))
         helpers.bulk(client=self.es, actions=batch)
