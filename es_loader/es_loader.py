@@ -55,8 +55,8 @@ class ESPipeline(object):
         self.index_name = index
         self.doc_type = doc_type
         self.loaded_items_count = 0
-        self.base_buffer_size = 5000
-        self.max_buffer_size = 20000
+        self.base_buffer_size = base_buffer_size
+        self.max_buffer_size = max_buffer_size
         self._create_index()
 
     def _create_index(self):
