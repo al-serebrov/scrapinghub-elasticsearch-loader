@@ -29,7 +29,9 @@ class ESPipeline(object):
     into batches and loaded to ElasticSearch.
     """
 
-    def __init__(self, sc, es, job_id, index=None, doc_type='product'):
+    def __init__(
+            self, sc, es, job_id, index=None, doc_type='product',
+            base_buffer_size=5000, max_buffer_size=20000):
         """Constructor.
 
         Arguments:
@@ -39,18 +41,23 @@ class ESPipeline(object):
                 orgranization/project/job, e.g.: '1886/5454/43'
             index - a string with ElasticSearch index name, defaults to None
             doc_type - a string with ElasticSearch document type name
+            base_buffer_size - integer with base buffer size which would be a
+                starting point for buffer size calculation
+            max_buffer_size - integer with maximal buffer size allowed, note
+                that it should be evenly devisible by base buffer size, i.e.
+                max_buffer_size % base_buffer_size = 0
+                Default limit is 20k, but if you have a lot of available RAM
+                it could be as high as you need it to.
         """
         self.sc = sc
         self.es = es
         self.job_id = job_id
         self.index_name = index
         self.doc_type = doc_type
-        self.items_buffer = []
         self.loaded_items_count = 0
-        self.buffer_size = 5000
+        self.base_buffer_size = 5000
+        self.max_buffer_size = 20000
         self._create_index()
-        self._get_job()
-        self._get_scraped_items_count()
 
     def _create_index(self):
         """Create index in the ElasticSearch.
@@ -72,79 +79,88 @@ class ESPipeline(object):
         self.es.indices.create(self.index_name)
         logger.debug('Index created')
 
-    def _get_job(self):
-        """Get job from ScrapingHubClient istance."""
-        self.job = self.sc.get_job(self.job_id)
-
-    def _get_job_metadata(self):
-        """Get job metadata."""
-        self.metadata = self.job.metadata.list()
-
-    def _get_scraped_items_count(self):
-        """Get scraped items count from job metadata.
-
-        The count is needed to make log messages more verbose
-        and to calculate batches size"""
-        self._get_job_metadata()
-        for data in self.metadata:
-            if data[0] == 'scrapystats':
-                self.items_count = data[1]['item_scraped_count']
-
     def _get_items(self):
         """Get items from Scrapy Cloud.
 
+        Besides getting items this method also gets job metadata,
+        extracts items count and calls method to calculate buffer size.
+
         Returns:
             items - an iterator with items.
+
+        Raises:
+            ValueError - if the method is unable to get items count.
         """
+        job = self.sc.get_job(self.job_id)
+        metadata = job.metadata.list()
+
+        items_count = 0
+        for data in metadata:
+            if data[0] == 'scrapystats':
+                items_count = data[1]['item_scraped_count']
+
+        if not items_count:
+            raise ValueError('Unable to get items count for job stats')
+
         logger.debug(
-            'There are {} items scraped. Downloading...'.format(self.items_count)
+            'There are {} items scraped. Downloading...'.format(items_count)
         )
-        items = self.job.items.iter()
+
+        self._calculate_buffer_size(items_count, self.base_buffer_size)
+        logger.debug('Batch size is set to {}'.format(self.buffer_size))
+
+        items = job.items.iter()
         return items
 
-    def _index_item(self, item):
-        """Prepare item to be indexed to ElasticSearch.
+    def _calculate_buffer_size(self, items_count, base_buffer_size):
+        """Calculate buffer size.
 
-        This method wrapps item from Scrapy Cloud to the be ready
-        to be indexed into ElasticSearch.
-        Also here actual batching is happening - items are accumulated
-        into buffer and then sent to ElasticSearh in bulk.
+        Hardcoded buffer size doesn't work as there might be jobs with
+        very different amount of items - from 100 to 100k, and it's better
+        to make it more adjustable.
+        If the job items count is smaller than base buffer size, the
+        method will use number from base_buffer_size attribute as buffer size,
+        and otherwise - if items count is much greater than base buffer size,
+        the method starts enlarging it, but it's limited by max_buffer_size
+        attibute - this is done to avoid having huge batches
+        to be processed in memory.
 
         Arguments:
-            item - an item from items() iterator of ScrapingHubClient.Job
+            items_count - integer with job items count
+            base_buffer_size - starting point for buffer size calculation.
         """
-        if self.buffer_size == 0:
-            return
-        index_action = {
-            '_op_type': 'index',
-            '_index': self.index_name,
-            '_type': self.doc_type,
-            'doc': dict(item)
-        }
-
-        self.items_buffer.append(index_action)
-
-        if len(self.items_buffer) >= self.buffer_size:
-            self.loaded_items_count += len(self.items_buffer)
-            self._send_items()
-            self.items_buffer = []
-
-        if len(self.items_buffer) < self.buffer_size \
-                and (self.items_count - self.loaded_items_count) < self.buffer_size and self.buffer_size > 0:
-            self.buffer_size = self.items_count - self.loaded_items_count
-            self.loaded_items_count += len(self.items_buffer)
-            if len(self.items_buffer) > 0:
-                self._send_items()
-
-    def _send_items(self):
-        """Bulk write items to ElasticSearch."""
-        logger.debug('Bulk writing {} items'.format(len(self.items_buffer)))
-        helpers.bulk(client=self.es, actions=self.items_buffer)
+        buf = items_count // base_buffer_size
+        if buf > 5 and base_buffer_size < self.max_buffer_size:
+            self._calculate_buffer_size(items_count, base_buffer_size * 2)
+        else:
+            self.buffer_size = base_buffer_size
 
     def process_items(self):
         """Entry point to the whole process.
-
         Calls all methods in order to process items of the job.
         """
+        batch = []
         for item in self._get_items():
-            self._index_item(item)
+
+            index_action = {
+                '_op_type': 'index',
+                '_index': self.index_name,
+                '_type': self.doc_type,
+                'doc': dict(item)
+            }
+
+            batch.append(index_action)
+
+            # if we accumulated enough items, send them in a bulk:
+            if len(batch) >= self.buffer_size:
+                self._bulk_send_items(batch)
+                batch = []
+
+        # If there are any items left, send them in a bulk:
+        if len(batch) > 0:
+            self._bulk_send_items(batch)
+
+    def _bulk_send_items(self, batch):
+        self.loaded_items_count += len(batch)
+        logger.debug('Bulk writing {} items'.format(len(batch)))
+        helpers.bulk(client=self.es, actions=batch)
