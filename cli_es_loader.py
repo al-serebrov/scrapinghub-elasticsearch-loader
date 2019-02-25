@@ -26,7 +26,7 @@ es = arguments.get('--elasticsearch')
 job_id = arguments.get('--job_id')
 index = arguments.get('--index')
 doc_type = arguments.get('--type')
-api_key = os.environ.get('SH_API_KEY')
+api_key = os.environ.get('SH_APIKEY')
 
 es = Elasticsearch([es])
 sc = ScrapinghubClient(api_key)
