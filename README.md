@@ -5,7 +5,7 @@ Install dependencies:
 ```bash
 virtualenv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install .
 ```
 
 Also you need to install ElasticSearch, or install docker and docker-compose to use the `docker-compose.yml` config from this project.
@@ -26,7 +26,7 @@ export SH_APIKEY="your_key"
 ### Run script
 The project has a command line interface "shes" (ScrapingHub - ElasticSearch), try running it and see a help message:
 ```bash
-$ python shes.py -h
+$ ./shes.py -h
 Downlad items to ElasticSearch.
 
 usage: shes.py -j JOB_ID [-e ELASTICSEARCH_URL] [-i INDEX] [-t DOC_TYPE] [-h]
