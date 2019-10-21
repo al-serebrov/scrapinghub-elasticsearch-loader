@@ -1,7 +1,7 @@
-# Load items from Scrapy Cloud to local ElasticSearch instance
+# Load items from Scrapy Cloud to ElasticSearch instance
 
 ## Installation
-Istall dependencies:
+Install dependencies:
 ```bash
 virtualenv venv
 source venv/bin/activate
