@@ -2,3 +2,5 @@
 *__pycache__*
 *.pyc
 *elk-data*
+*.egg-info
+*.tox
