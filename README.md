@@ -18,18 +18,18 @@ docker-compose up -d
 ```
 
 ### Set environmental variables
-In order to use this script you need you [Scrapy Cloud API key](https://app.scrapinghub.com/account/apikey), add it to environmenatal variable SH_API_KEY:
+In order to use this script you need you [Scrapy Cloud API key](https://app.scrapinghub.com/account/apikey), add it to environmenatal variable SH_APIKEY:
 ```bash
-export SH_API_KEY="your_key"
+export SH_APIKEY="your_key"
 ```
 
 ### Run script
-The project has a command line interface, try running it and see a help message:
+The project has a command line interface "shes" (ScrapingHub - ElasticSearch), try running it and see a help message:
 ```bash
-$ python cli_es_loader.py -h
+$ python shes.py -h
 Downlad items to ElasticSearch.
 
-usage: download_items_to_es.py -j JOB_ID [-e ELASTICSEARCH_URL] [-i INDEX] [-t DOC_TYPE] [-h]
+usage: shes.py -j JOB_ID [-e ELASTICSEARCH_URL] [-i INDEX] [-t DOC_TYPE] [-h]
 
 Download items from Scrapinhub cloud and upload them to ElasticSearch index.
 
