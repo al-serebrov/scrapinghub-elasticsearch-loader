@@ -10,9 +10,6 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-with open('requirements.txt') as f:
-    requirements = f.read().splitlines()
-
 setup(
     name='shes',
     version='0.5',
@@ -34,5 +31,13 @@ setup(
     keywords='scrapy cloud scrapinghub elasticsearch loader',
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     python_requires='>=3.5',
-    install_requires=requirements,
+    instal_requires=[
+        'docopt==0.6.2',
+        'elasticsearch==6.3.1',
+        'msgpack-python==0.5.6',
+        'requests==2.21.0',
+        'scrapinghub==2.0.3',
+        'six==1.11.0',
+        'flake8'
+    ]
 )
