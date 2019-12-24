@@ -31,7 +31,7 @@ setup(
     keywords='scrapy cloud scrapinghub elasticsearch loader',
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     python_requires='>=3.5',
-    instal_requires=[
+    install_requires=[
         'docopt==0.6.2',
         'elasticsearch==6.3.1',
         'msgpack-python==0.5.6',

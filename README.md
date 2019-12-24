@@ -6,7 +6,6 @@ Install dependencies:
 virtualenv venv
 source venv/bin/activate
 pip install .
-pip install -r requirements.txt
 ```
 
 Also you need to install ElasticSearch, or install docker and docker-compose to use the `docker-compose.yml` config from this project.
